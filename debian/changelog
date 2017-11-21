@@ -1,0 +1,5 @@
+libapp-retry-perl (0.1) jessie; urgency=low
+
+  * Initial Release.
+
+ -- Moritz Lenz <moritz.lenz@noris.de>  Tue, 21 Nov 2017 11:26:17 +0100
