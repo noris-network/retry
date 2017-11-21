@@ -1,0 +1,140 @@
+#!/usr/bin/env perl
+use 5.014;
+use strict;
+use warnings;
+use utf8;
+
+use Getopt::Long;
+use IPC::Run qw(run);
+use Time::HiRes qw(sleep);
+
+our $Version = '0.1';
+
+GetOptions(
+    'verbose!'              => \my $Verbose,
+    'silent!'               => \my $Silent,
+    'attempts=i'            => \(my $Attempts = 5),
+    'delay=f'               => \(my $Delay = 5),
+    'quadratic-backoff!'    => \(my $QuadraticBackoff = 1),
+);
+
+retry( \@ARGV, $Attempts, $Delay, $QuadraticBackoff, $Verbose);
+
+sub retry {
+    my ($command, $attempts, $delay, $quadratic, $verbose) = @_;
+    for my $attempt (1..$attempts) {
+        my ($exit_code, $captured) = run_and_capture_out_err($command);
+        if ($verbose) {
+            say STDERR "Attempt $attempt, exit code $exit_code";
+            print_out_err($captured);
+        }
+        if ($exit_code == 0 || $attempt == $attempts) {
+            unless ( $Silent && $exit_code == 0 || $verbose) {
+                print_out_err($captured);
+            }
+            exit $exit_code;
+        }
+        my $sleep = ($quadratic ? $attempt ** 2 : 1) * $delay;
+        say STDERR "Trying again in $sleep seconds"
+            if $verbose;
+        sleep $sleep;
+    }
+}
+
+sub print_out_err {
+    my ($aoa) = @_;
+    for my $line (@$aoa) {
+        if ($line->[0] eq 'out') {
+            print STDOUT $line->[1];
+        }
+        else {
+            print STDERR $line->[1];
+        }
+    }
+}
+
+sub run_and_capture_out_err {
+    my ($command) = @_;
+    my @captured;
+    my $out = sub { push @captured, ['out', $_[0]] };
+    my $err = sub { push @captured, ['err', $_[0]] };
+    my $success = run $command, '>', $out, '2>', $err;
+    return ($success ? 0 : $? >> 8, \@captured);
+}
+
+=head1 NAME
+
+retry -- a script for retrying command execution, with quadratic backoff
+
+=head1 SYNOPSIS
+
+The examples here use C<bash -c 'i=$(shuf -i 0-3 -n 1); echo $i; exit $i'>
+as a runnable placeholder for a command that occasionally fails.
+
+    retry -- bash -c 'i=$(shuf -i 0-3 -n 1); echo $i; exit $i'
+    retry --delay 0.5 --attempts 10 --no-quadratic-backoff  \
+          -- bash -c 'i=$(shuf -i 0-3 -n 1); echo $i; exit $i'
+
+=head1 DESCRIPTION
+
+C<retry> repeats execution of an arbitrary command until the command
+succeeds (as defined by the exit code being 0), or until the configured
+number of attempts is reached. It sleeps a configurable number of
+seconds before retrying.
+
+The output from the last command execution is reproduced, unless the
+comamnd was successful and the option C<--silent> is present. Output
+from previous, unsuccessful command executions is suppressed, unless you
+supply the C<--verbose> option.
+
+=head1 OPTIONS
+
+=head2 --attempts TIMES
+
+Upper limit for the number of times that the command is executed. Must
+be an integer. Default is 5.
+
+=head2 --delay SECONDS
+
+Base for the delay between subsequent command executions, in seconds.
+
+By default,
+this base value is multiplied with the square of the number of the
+attempt. So with C<--delay 2 --attempts 4>, the delays are
+
+    After attempt  | Delay in seconds
+    1              | 1*1 * 2 = 2
+    2              | 2*2 * 2 = 8
+    3              | 3*3 * 2 = 18
+
+This behavior can be overridden with the C<--no-quadratic-backoff>
+option, in which case the delay is always the argument to the C<--delay>
+option.
+
+The argument can be an integer, a frational number of a floating pointer
+number. The default value is 5.
+
+=head2 --quadratic-backoff, --no-quadratic-backoff
+
+Whether to multiply the delay with the square of the number of the
+current attempt. Default: yes. See the documentation for C<--delay> for
+more details.
+
+=head2 --silent
+
+Do not print out the output (and error output) if the command ran
+successfully. This is useful for cron jobs.
+
+=head2 --verbose
+
+Print the output from each command run, as well as exit code
+and potentially other information.
+
+=head1 AUTHOR
+
+Moritz Lenz for L<noris network AG|https://noris.net/>.
+
+=cut
+
+
+# vim: ft=perl sw=4 ts=4 expandtab
