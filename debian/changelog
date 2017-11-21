@@ -1,4 +1,4 @@
-libapp-retry-perl (0.1) jessie; urgency=low
+retry (0.1) jessie; urgency=low
 
   * Initial Release.
 
