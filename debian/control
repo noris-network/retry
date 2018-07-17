@@ -3,7 +3,8 @@ Section: perl
 Priority: optional
 Maintainer: Moritz Lenz <moritz.lenz@noris.de>
 Build-Depends: debhelper (>= 9),
- perl
+ perl,
+ libmodule-build-perl
 Build-Depends-Indep: libipc-run-perl
 Standards-Version: 3.9.6
 Homepage: https://metacpan.org/release/App-retry
